@@ -1,0 +1,27 @@
+{
+	"@app:env": "devlopment",
+	"@app:version": "1",
+	"@app:env=devlopment": {
+		"@app:R2BucketName": "ameliazz-dev",
+		"@app:resources": {
+			"@logger:transports": "all",
+			"@resend:emails": {
+				"enabled": false
+			}
+		},
+		"@server:host": "0.0.0.0",
+		"@server:port": 8000
+	},
+	"@app:env=production": {
+		"@app:R2BucketName": "ameliazz",
+		"@app:resources": {
+			"@logger:transports": "all",
+			"@resend:emails": {
+				"enabled": false,
+				"domain": "api.ameliazz.xyz"
+			}
+		},
+		"@server:host": "0.0.0.0",
+		"@server:port": 0
+	}
+}
