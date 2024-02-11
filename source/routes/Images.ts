@@ -1,8 +1,7 @@
 import App from '@/main'
 import { FastifyInstance } from 'fastify'
 
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { lookup } from 'mrmime'
 
 import timingSafeEqual from '@/utils/timingSafeEqual'
 
@@ -64,8 +63,7 @@ export default (fastify: FastifyInstance, _: any, done: () => any) => {
 		)
 
 		if (image) {
-			reply.type(String(image.contentType))
-			reply.status(200).send(image.buffer)
+			reply.status(200).type(image.contentType).send(image.buffer)
 		} else {
 			reply.status(404).send({
 				message: 'Not found',
@@ -75,13 +73,13 @@ export default (fastify: FastifyInstance, _: any, done: () => any) => {
 	})
 
 	fastify.post<{
-		Params: {
-			file: string
-		}
 		Reply: {
 			200: {
-				expiresIn: number
-				signedUrl: string
+				message: string
+				data: {
+					name: string
+					contentType: string
+				}
 			}
 			400: {
 				message: string
@@ -90,13 +88,14 @@ export default (fastify: FastifyInstance, _: any, done: () => any) => {
 				message: string
 			}
 		}
-		Body: {
+		Params: {
 			filename: string
-			mediaType: string
 		}
-	}>('/upload/:file', async (req, reply) => {
-		const data = req.body
+		Body: string
+	}>('/upload/:filename', async (req, reply) => {
 		const auth = req.headers.authorization
+		const filename = req.params.filename
+		const mediaType = lookup(filename)
 
 		if (!timingSafeEqual(auth)) {
 			reply.status(401).send({
@@ -106,30 +105,28 @@ export default (fastify: FastifyInstance, _: any, done: () => any) => {
 			return
 		}
 
-		if (!data.filename || !data.mediaType) {
+		if (!mediaType) {
 			reply.status(400).send({
-				message: 'Bad Request. Missing properties',
+				message: 'Bad Request',
 			})
 			return
 		}
 
-		const presignedUrl = await getSignedUrl(
-			App.modules.R2.Client,
-			new PutObjectCommand({
-				Bucket: App.modules.R2.R2BucketName,
-				Key: `/images/${data.filename}`,
-				ContentType: data.mediaType,
-			}),
-			{ expiresIn: 600 }
-		)
+		const data = {
+			name: filename,
+			contentType: mediaType,
+			buffer: Buffer.from(req.body, 'base64'),
+		}
 
-		setTimeout(() => {
-			cache.revalidate()
-		}, 10 * (60 * 1000))
+		await App.modules.R2.uploadFile(data)
+		cache.collection.set(filename, data)
 
 		reply.status(200).send({
-			expiresIn: 600000,
-			signedUrl: presignedUrl,
+			message: 'OK',
+			data: {
+				name: filename,
+				contentType: mediaType,
+			},
 		})
 	})
 

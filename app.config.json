@@ -1,5 +1,5 @@
 {
-	"@app:env": "devlopment",
+	"@app:env": "production",
 	"@app:version": "1",
 	"@app:env=devlopment": {
 		"@app:R2BucketName": "ameliazz-dev",

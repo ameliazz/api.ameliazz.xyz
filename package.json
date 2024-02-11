@@ -6,7 +6,7 @@
 	"author": "Amélia Ribeiro <contato@ameliazz.xyz> (https://ameliazz.xyz/)",
 	"license": "MIT",
 	"scripts": {
-		"watch": "tsnd -r tsconfig-paths/register --cls --respawn --transpile-only ./source/main.ts",
+		"watch": "tsnd -r tsconfig-paths/register --cls --respawn ./source/main.ts",
 		"build": "tsc && tsc-alias",
 		"start": "node ./dist/main.js"
 	},
@@ -19,12 +19,12 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.509.0",
-		"@aws-sdk/s3-request-presigner": "^3.509.0",
 		"@fastify/middie": "^8.3.0",
 		"@prisma/client": "^5.9.1",
 		"colors": "^1.4.0",
 		"dotenv": "^16.4.1",
 		"fastify": "^4.25.2",
+		"mrmime": "^2.0.0",
 		"prisma": "^5.9.1",
 		"resend": "^3.1.0"
 	}
