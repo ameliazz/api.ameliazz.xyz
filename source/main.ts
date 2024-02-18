@@ -20,6 +20,7 @@ const Config: {
 
 import Fastify, { FastifyInstance } from 'fastify'
 import Middie from '@fastify/middie'
+import Cors from '@fastify/cors'
 
 import { PrismaClient } from '@prisma/client'
 import * as R2 from '@/database/r2'
@@ -68,6 +69,9 @@ class Application {
 
 	async setup() {
 		await this.server.fastify.register(Middie)
+		await this.server.fastify.register(Cors, {
+			origin: '*',
+		})
 
 		if (RawConfig['@app:env'] == 'devlopment') {
 			this.modules.logger.log(
