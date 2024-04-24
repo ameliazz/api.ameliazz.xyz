@@ -1,196 +1,99 @@
-import RawConfig from '../app.config.json'
-import dotenv from 'dotenv'
+import { Hono } from 'hono'
+import { serve } from '@hono/node-server'
+import { prettyJSON } from 'hono/pretty-json'
 
-dotenv.config({
-	path:
-		RawConfig['@app:env'] == 'devlopment'
-			? `${process.cwd()}/.env.local`
-			: `${process.cwd()}/.env`,
-})
+import { Enhancer, loadRoutes } from '@/Loader.app'
+import { log, warn, error } from '@/modules/logging/index.module'
+import { client as RedisClient } from '@/services/redis/index.serv'
+import { prisma as PrismaClient } from '@/services/database/index.serv'
 
-const Config: {
-	'@app:version': string
-	'@app:R2BucketName': string
-	'@app:resources': {
-		[resource: PropertyKey]: string | number | null
-	}
-	'@server:host': string
-	'@server:port': number
-} = Object(RawConfig)[`@app:env=${process.env['ENV'] || RawConfig['@app:env']}`]
+export class Application {
+	enhancer = Enhancer
+	database = PrismaClient
+	redis = RedisClient
+	server = new Hono({
+		strict: false,
+	})
 
-import Fastify, { FastifyInstance } from 'fastify'
-import Middie from '@fastify/middie'
-import Cors from '@fastify/cors'
-
-import { PrismaClient } from '@prisma/client'
-import * as R2 from '@/database/r2'
-
-import Logger from '@/modules/logger'
-import * as Transports from '@/modules/logger/transports/All'
-
-import Cache from '@/modules/cache'
-import Resend from '@/modules/resend'
-
-import { readRoutes } from '@/utils/readRoutes'
-
-class Application {
-	modules: {
-		logger: Logger
-		caches: {
-			[name: PropertyKey]: Cache
-		}
-		R2: typeof R2
-		prisma: PrismaClient
-		resend?: typeof Resend
-	} = {
-		logger: new Logger([new Transports.Console.default()]),
-		caches: {},
-		R2,
-		prisma: new PrismaClient(),
-	}
-	server: {
-		fastify: FastifyInstance
+	routes: {
+		name: string
+		routes: Array<{
+			path: string
+			app: Hono
+		}>
+	}[]
+	config: {
 		port: number
-		address: string
-	} = {
-		fastify: Fastify(),
-		port:
-			Config['@server:port'] == 0
-				? Number(process.env['PORT'])
-				: Config['@server:port'],
-		address: Config['@server:host'],
-	}
+		hostname: string
+		prettyJSON: boolean
+		apiSecret: string
+	} = Object(Enhancer.env)
 
 	constructor() {
-		this.setup().then(() => {
-			this.listen()
-		})
+		this.run()
 	}
 
-	async setup() {
-		await this.server.fastify.register(Middie)
-		await this.server.fastify.register(Cors, {
-			origin: '*',
+	async $refreshRedisData() {
+		const projects = await this.database.project.findMany()
+		const sessions = await this.database.session.findMany()
+
+		this.redis.set('projects', JSON.stringify(projects)).then(() => {
+			log(`Cache ${'projetos'.magenta} revalidado.`, [
+				' App '.bgMagenta,
+				' IORedis '.bgRed,
+			])
 		})
 
-		if (RawConfig['@app:env'] == 'devlopment') {
-			this.modules.logger.log(
-				`aviso: a aplicação está sendo executada em ambiente de desenvolvimento.`
-					.gray,
-				{
-					level: 'warn',
-					tags: ['Environment'],
-				}
+		this.redis.set('sessions', JSON.stringify(sessions)).then(() => {
+			log(`Cache ${'sessões'.magenta} revalidado.`, [
+				' App '.bgMagenta,
+				' IORedis '.bgRed,
+			])
+		})
+
+		return false
+	}
+
+	async run() {
+		log(`Ambiente: ${` ${this.enhancer.env.NAME} `.bgMagenta}`)
+
+		if (this.config.prettyJSON) {
+			this.server.use(prettyJSON({ space: 4 }))
+		}
+
+		const routes = await loadRoutes()
+		if (routes) {
+			this.routes = routes
+
+			for (const route of routes) {
+				route.routes.forEach((route) => {
+					this.server.route(route.path, route.app)
+				})
+			}
+
+			log(
+				`${String(routes.length).cyan} rota${'(s)'.gray} registrada${
+					'(s)'.gray
+				}`,
+				[' Route Handler '.bgGreen]
 			)
 		}
 
-		for (const resource in Config['@app:resources']) {
-			switch (resource) {
-				case '@logger:transports':
-					const LoggerTransports: string | string[] = Object(
-						Config['@app:resources']
-					)?.[resource]
+		this.$refreshRedisData()
 
-					const enabledTransports = Array.isArray(LoggerTransports)
-						? LoggerTransports?.map(
-								(transportName: string) =>
-									Object(Transports)[transportName].default
-						  )
-						: LoggerTransports == 'all'
-						? Object.values(Transports).flatMap(
-								(item) => item.default
-						  )
-						: [Transports.Console.default]
-
-					this.modules.logger = new Logger(
-						enabledTransports.map((transport) => new transport())
-					)
-
-					this.modules.logger.log(
-						`Módulo de logs carregado com ${
-							String(this.modules.logger.transports.length).cyan
-						} transporte(s)`,
-						{
-							tags: ['Logger'.yellow, 'Transports'.green],
-						}
-					)
-
-					break
-
-				case '@resend:emails':
-					const ResendConfigObject: {
-						enabled: boolean
-						domain?: string
-					} = Object(Config['@app:resources'])?.[resource]
-
-					if (ResendConfigObject.enabled) {
-						this.modules.resend = Resend
-
-						this.modules.logger.log(
-							`Módulo ${'Resend'.cyan} carregado. ${
-								`(Domínio: ${
-									String(ResendConfigObject.domain).magenta
-								})`.gray
-							}`,
-							{
-								tags: ['Logger'.yellow, 'Transports'.green],
-							}
-						)
-					}
-
-					break
-			}
-		}
-
-		const routes = await readRoutes()
-		routes.forEach((route) => {
-			if (route.cache) {
-				const dataType = route.cache.cacheDataType
-				this.modules.caches[route.cache.name] = new Cache<
-					typeof dataType
-				>(route.cache.revalidate)
-
-				this.modules.logger.log(
-					`Cache ${
-						String(route.cache.name).cyan
-					} gerado para a rota ${String(route.path).cyan}`,
-					{
-						tags: ['Router'.green],
-					}
-				)
-			}
-
-			this.server.fastify.register(route.default, {
-				prefix: route.path,
-			})
-		})
-
-		this.modules.logger.log(
-			`${String(routes.length).cyan} rota(s) registradas`,
+		serve(
 			{
-				tags: ['Router'.green],
+				fetch: this.server.fetch,
+				port: this.config.port,
+				hostname: this.config.hostname,
+			},
+			() => {
+				log(`API servindo a porta ${String(this.config.port).cyan}`, [
+					' Hono Server '.bgRed,
+				])
 			}
 		)
-
-		return true
-	}
-
-	listen() {
-		this.server.fastify
-			.listen({
-				host: this.server.address,
-				port: this.server.port,
-			})
-			.then(() => {
-				this.modules.logger.log(
-					`API servindo a porta ${String(this.server.port).cyan}`,
-					{
-						tags: ['Server'.green],
-					}
-				)
-			})
 	}
 }
 
-export { Config as ApplicationEnvConfig }
 export default new Application()
