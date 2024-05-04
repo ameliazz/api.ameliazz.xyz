@@ -4,37 +4,24 @@ import App from '@/main'
 import { auth } from '@/utils/timingSafeEqual.util'
 
 import { Project } from '@prisma/client'
-import normalizeBodyUtil from './normalizeBody.util'
+import { normalizeProject, useFetchData } from './validators.util'
 
 export default new Hono()
 	.get('/', async (ctx) => {
-		const projects: Project[] = JSON.parse(
-			String(await App.redis.get('projects')) || '[]'
-		)
-
+		const [projects] = await useFetchData(ctx)
 		return ctx.json(projects, 200)
 	})
 	.get('/:project', async (ctx) => {
-		const projects: Project[] = JSON.parse(
-				String(await App.redis.get('projects')) || '[]'
-			),
-			project: Project | undefined = projects.find(
-				(item) => item.name == ctx.req.param('project')
-			)
+		const [projects, session, utils] = await useFetchData(ctx)
+		const project = utils.getProject(String(ctx.req.param('project')))
 
 		return ctx.json(project || {}, project ? 200 : 404)
 	})
-	.post('/', async (ctx) => {
-		const projects: Project[] = JSON.parse(
-				String(await App.redis.get('projects')) || '[]'
-			),
-			body = await ctx.req.json<Project>(),
-			session = await auth(String(ctx.req.header('authorization')))
+	.post('/:project', async (ctx) => {
+		const [projects, session, utils] = await useFetchData(ctx),
+			body = await ctx.req.json<Project>()
 
-		if (
-			!session.authenticated ||
-			!session.checkPermission('create_project')
-		) {
+		if (!utils.getAccess('create_project')) {
 			return ctx.text('unauthorized', 401)
 		}
 
@@ -42,22 +29,44 @@ export default new Hono()
 			data: body,
 		})
 
-		projects.push(normalizeBodyUtil(body))
+		projects.push(normalizeProject(body))
+		App.redis.set('projects', JSON.stringify(projects))
+
+		return ctx.json(body, 200)
+	})
+	.patch('/:project', async (ctx) => {
+		const [projects, session, utils] = await useFetchData(ctx),
+			body = await ctx.req.json<Project>(),
+			projectName = ctx.req.param('project')
+
+		if (!utils.getAccess('edit_project')) {
+			return ctx.text('unauthorized', 401)
+		}
+
+		await App.database.project.update({
+			where: {
+				name: projectName,
+			},
+			data: body,
+		})
+
+		const index = projects.indexOf(Object(utils.getProject(projectName)))
+		projects.splice(
+			index,
+			0,
+			normalizeProject(
+				Object.assign(Object(utils.getProject(projectName)), body)
+			)
+		)
 		App.redis.set('projects', JSON.stringify(projects))
 
 		return ctx.json(body, 200)
 	})
 	.delete('/:project', async (ctx) => {
-		const projects: Project[] = JSON.parse(
-				String(await App.redis.get('projects')) || '[]'
-			),
-			projectName = ctx.req.param('project'),
-			session = await auth(String(ctx.req.header('authorization')))
+		const [projects, session, utils] = await useFetchData(ctx),
+			projectName: string = ctx.req.param('project')
 
-		if (
-			!session.authenticated ||
-			!session.checkPermission('delete_project')
-		) {
+		if (!utils.getAccess('delete_project')) {
 			return ctx.text('unauthorized', 401)
 		}
 
@@ -72,8 +81,5 @@ export default new Hono()
 			JSON.stringify(projects.filter((item) => item.name != projectName))
 		)
 
-		return ctx.json(
-			projects.find((item) => item.name == projectName),
-			200
-		)
+		return ctx.json(utils.getProject(projectName), 200)
 	})

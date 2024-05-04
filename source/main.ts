@@ -1,8 +1,9 @@
+import { Enhancer, loadRoutes } from '@/Loader.app'
 import { Hono } from 'hono'
-import { serve } from '@hono/node-server'
+
+import { serve, HttpBindings } from '@hono/node-server'
 import { prettyJSON } from 'hono/pretty-json'
 
-import { Enhancer, loadRoutes } from '@/Loader.app'
 import { log, warn, error } from '@/modules/logging/index.module'
 import { client as RedisClient } from '@/services/redis/index.serv'
 import { prisma as PrismaClient } from '@/services/database/index.serv'
@@ -11,7 +12,9 @@ export class Application {
 	enhancer = Enhancer
 	database = PrismaClient
 	redis = RedisClient
-	server = new Hono({
+	server = new Hono<{
+		Bindings: HttpBindings
+	}>({
 		strict: false,
 	})
 
@@ -33,7 +36,7 @@ export class Application {
 		this.run()
 	}
 
-	async $refreshRedisData() {
+	async $hydrateRedisData() {
 		const projects = await this.database.project.findMany()
 		const sessions = await this.database.session.findMany()
 
@@ -79,7 +82,7 @@ export class Application {
 			)
 		}
 
-		this.$refreshRedisData()
+		this.$hydrateRedisData()
 
 		serve(
 			{
