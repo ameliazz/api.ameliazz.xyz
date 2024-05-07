@@ -58,7 +58,7 @@ export const readRoutes = async (dir = `${__dirname}/../routes`) => {
 			app: Hono
 		}[] = []
 
-		if (route.endsWith('.route.ts')) {
+		if (route.endsWith('.route.ts') || route.endsWith('.route.js')) {
 			routeSubRoutes = [
 				{
 					path: `/${parsePath(route.split('.')[0])}`,
@@ -67,8 +67,10 @@ export const readRoutes = async (dir = `${__dirname}/../routes`) => {
 			]
 		} else {
 			routeSubRoutes = (
-				await readdirAndImport<Hono>(`${dir}/${route}`, (str) =>
-					str.endsWith('.route.ts')
+				await readdirAndImport<Hono>(
+					`${dir}/${route}`,
+					(str) =>
+						str.endsWith('.route.ts') || str.endsWith('.route.js')
 				)
 			).map((item) => {
 				return {
