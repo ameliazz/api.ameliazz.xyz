@@ -1,10 +1,9 @@
 import { Hono } from 'hono'
 
 import App from '@/main'
-import { auth } from '@/utils/timingSafeEqual.util'
+import { useNormalizeProject, useFetchData } from './hooks.util'
 
-import { Project } from '@prisma/client'
-import { normalizeProject, useFetchData } from './validators.util'
+import type { Project } from '@prisma/client'
 
 export default new Hono()
 	.get('/', async (ctx) => {
@@ -29,7 +28,7 @@ export default new Hono()
 			data: body,
 		})
 
-		projects.push(normalizeProject(body))
+		projects.push(useNormalizeProject(body))
 		App.redis.set('projects', JSON.stringify(projects))
 
 		return ctx.json(body, 200)
@@ -54,7 +53,7 @@ export default new Hono()
 		projects.splice(
 			index,
 			0,
-			normalizeProject(
+			useNormalizeProject(
 				Object.assign(Object(utils.getProject(projectName)), body)
 			)
 		)

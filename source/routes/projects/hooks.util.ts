@@ -3,8 +3,9 @@ import { client as RedisClient } from '@/services/redis/index.serv'
 
 import { auth } from '@/utils/timingSafeEqual.util'
 import { Context } from 'hono'
+import { useSession } from '@/utils/session.util'
 
-export const normalizeProject = (body: Project) => {
+export const useNormalizeProject = (body: Project) => {
 	return Object.assign(
 		{
 			name: null,
@@ -21,7 +22,7 @@ export const normalizeProject = (body: Project) => {
 }
 
 export const useFetchData = async (ctx: Context) => {
-	const session = await auth(String(ctx.req.header('authorization'))),
+	const session = await useSession(ctx),
 		projects: Project[] = JSON.parse(
 			String(await RedisClient.get('projects')) || '[]'
 		)
@@ -35,10 +36,9 @@ export const useFetchData = async (ctx: Context) => {
 		},
 	}
 
-	const response: [Project[], typeof session, typeof utils] = [
-		projects,
-		session,
-		utils,
+	return [projects, session, utils] as [
+		Project[],
+		typeof session,
+		typeof utils
 	]
-	return response
 }

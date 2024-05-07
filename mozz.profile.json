@@ -6,15 +6,12 @@
 		"prod": {
 			"hostname": "0.0.0.0",
 			"port": "$env('PORT', 3000)",
-			"prettyJSON": false,
-			"apiSecret": "$env('API_SECRET')"
+			"prettyJSON": false
 		},
 		"dev": {
-			"@mozz:dotenv": ".env.local",
 			"hostname": "localhost",
 			"port": 3000,
-			"prettyJSON": true,
-			"apiSecret": "$env('API_SECRET', 8888)"
+			"prettyJSON": true
 		}
 	}
 }

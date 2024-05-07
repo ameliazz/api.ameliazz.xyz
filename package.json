@@ -23,6 +23,7 @@
 		"colors": "^1.4.0",
 		"dotenv": "^16.4.1",
 		"hono": "^4.2.5",
+		"hono-rate-limiter": "^0.3.0",
 		"ioredis": "^5.4.1",
 		"mozz.env": "^2.2.1"
 	}

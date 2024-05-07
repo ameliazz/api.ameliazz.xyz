@@ -2,6 +2,7 @@ import { Enhancer, loadRoutes } from '@/Loader.app'
 import { Hono } from 'hono'
 
 import { serve, HttpBindings } from '@hono/node-server'
+import { rateLimiter } from 'hono-rate-limiter'
 import { prettyJSON } from 'hono/pretty-json'
 
 import { log, warn, error } from '@/modules/logging/index.module'
@@ -29,7 +30,6 @@ export class Application {
 		port: number
 		hostname: string
 		prettyJSON: boolean
-		apiSecret: string
 	} = Object(Enhancer.env)
 
 	constructor() {
@@ -59,6 +59,18 @@ export class Application {
 
 	async run() {
 		log(`Ambiente: ${` ${this.enhancer.env.NAME} `.bgMagenta}`)
+
+		this.server.use(
+			rateLimiter({
+				windowMs: 15 * 60 * 1000,
+				limit: 100,
+				standardHeaders: 'draft-6',
+				keyGenerator: (c) =>
+					c.req.header('x-forwarded-for') ||
+					c.req.header('x-real-ip') ||
+					'anon',
+			})
+		)
 
 		if (this.config.prettyJSON) {
 			this.server.use(prettyJSON({ space: 4 }))
