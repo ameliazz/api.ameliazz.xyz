@@ -1,6 +1,5 @@
-import { Enhancer } from '@/Loader.app'
-import { Session } from '@prisma/client'
-import { client } from '@/services/redis/index.serv'
+import type { Session } from '@prisma/client'
+import { client } from '@services/redis/index.serv'
 import { timingSafeEqual } from 'node:crypto'
 
 export default function safeEqual(
@@ -20,7 +19,6 @@ export const auth = async (
 	authenticated: boolean
 	secret: string
 	flags: string[]
-	checkPermission: (flag: string) => boolean
 }> => {
 	const session: Session = JSON.parse(
 		String(await client.get('sessions')) || '[]'
@@ -32,9 +30,6 @@ export const auth = async (
 		return {
 			authenticated: true,
 			...session,
-			checkPermission: (flag) => {
-				return session.flags.includes(flag)
-			},
 		}
 	}
 
@@ -42,6 +37,5 @@ export const auth = async (
 		authenticated: false,
 		secret: input,
 		flags: [],
-		checkPermission: (flag) => false,
 	}
 }

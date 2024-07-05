@@ -1,13 +1,13 @@
-import { Enhancer, loadRoutes } from '@/Loader.app'
+import { Enhancer, loadRouters } from '@/Loader.app'
 import { Hono } from 'hono'
 
 import { serve, HttpBindings } from '@hono/node-server'
 import { rateLimiter } from 'hono-rate-limiter'
 import { prettyJSON } from 'hono/pretty-json'
 
-import { log, warn, error } from '@/modules/logging/index.module'
-import { client as RedisClient } from '@/services/redis/index.serv'
-import { prisma as PrismaClient } from '@/services/database/index.serv'
+import { log } from '@modules/logging/index.module'
+import { client as RedisClient } from '@services/redis/index.serv'
+import { prisma as PrismaClient } from '@services/database/index.serv'
 
 export class Application {
 	enhancer = Enhancer
@@ -19,21 +19,18 @@ export class Application {
 		strict: false,
 	})
 
-	routes: {
+	routers: {
 		name: string
 		routes: Array<{
 			path: string
 			app: Hono
 		}>
-	}[]
-	config: {
-		port: number
-		hostname: string
-		prettyJSON: boolean
-	} = Object(Enhancer.env)
+	}[] = []
+
+	config = Enhancer.env
 
 	constructor() {
-		this.run()
+		this.start()
 	}
 
 	async $hydrateRedisData() {
@@ -57,7 +54,7 @@ export class Application {
 		return false
 	}
 
-	async run() {
+	async start() {
 		log(`Ambiente: ${` ${this.enhancer.env.NAME} `.bgMagenta}`)
 
 		this.server.use(
@@ -76,35 +73,35 @@ export class Application {
 			this.server.use(prettyJSON({ space: 4 }))
 		}
 
-		const routes = await loadRoutes()
-		if (routes) {
-			this.routes = routes
+		const routers = await loadRouters()
+		if (routers) {
+			this.routers = routers
 
-			for (const route of routes) {
-				route.routes.forEach((route) => {
+			for (const router of routers) {
+				router.routes.forEach((route) => {
 					this.server.route(route.path, route.app)
 				})
 			}
 
 			log(
-				`${String(routes.length).cyan} rota${'(s)'.gray} registrada${
-					'(s)'.gray
-				}`,
-				[' Route Handler '.bgGreen]
+				`${String(routers.length).cyan} roteador${
+					'(es)'.gray
+				} registrado${'(s)'.gray}`,
+				[' Router Handler '.bgGreen]
 			)
 		}
 
-		this.$hydrateRedisData()
+		await this.$hydrateRedisData()
 
 		serve(
 			{
 				fetch: this.server.fetch,
 				port: this.config.port,
-				hostname: this.config.hostname,
+				hostname: this.config.hostname || undefined,
 			},
 			() => {
 				log(`API servindo a porta ${String(this.config.port).cyan}`, [
-					' Hono Server '.bgRed,
+					' Server '.bgRed,
 				])
 			}
 		)

@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
+
 import App from '@/main'
-import { useSession } from '@/utils/session.util'
+import useSession from '@hooks/useSession.hook'
+import { PermissionFlags } from '@/types/Flags.enum'
 
 export default new Hono()
 	.get('/', (ctx) => {
@@ -9,7 +11,7 @@ export default new Hono()
 	.get('/hydrate', async (ctx) => {
 		const session = await useSession(ctx)
 
-		if (session.checkPermission('refresh_data')) {
+		if (session.getPermission(PermissionFlags.RefreshCache)) {
 			try {
 				await App.$hydrateRedisData()
 				return ctx.text('OK', 200)

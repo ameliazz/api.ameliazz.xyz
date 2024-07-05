@@ -19,7 +19,11 @@
 		"strictPropertyInitialization": false,
 		"baseUrl": "./source",
 		"paths": {
-			"@/*": ["*"]
+			"@/*": ["*"],
+			"@utils/*": ["utils/*"],
+			"@hooks/*": ["hooks/*"],
+			"@services/*": ["services/*"],
+			"@modules/*": ["modules/*"]
 		}
 	},
 	"include": ["./source/**/*"],

@@ -41,7 +41,7 @@ export const parsePath = (input: string) => {
 	}
 }
 
-export const readRoutes = async (dir = `${__dirname}/../routes`) => {
+export const readRouters = async (dir = `${__dirname}/../routers`) => {
 	const response: {
 		name: string
 		routes: {
@@ -49,6 +49,7 @@ export const readRoutes = async (dir = `${__dirname}/../routes`) => {
 			app: Hono
 		}[]
 	}[] = []
+
 	const raw = readdir(dir)
 
 	if (!raw) return response

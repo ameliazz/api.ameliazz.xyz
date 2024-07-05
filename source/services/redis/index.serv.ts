@@ -1,5 +1,5 @@
 import Redis from 'ioredis'
-import { log } from '@/modules/logging/index.module'
+import { log } from '@modules/logging/index.module'
 
 export const client = new Redis(String(process.env['REDIS_URL']))
 
