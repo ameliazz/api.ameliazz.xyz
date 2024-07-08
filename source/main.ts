@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { serve, HttpBindings } from '@hono/node-server'
 import { rateLimiter } from 'hono-rate-limiter'
 import { prettyJSON } from 'hono/pretty-json'
+import { cors } from 'hono/cors'
 
 import { log } from '@modules/logging/index.module'
 import { client as RedisClient } from '@services/redis/index.serv'
@@ -57,6 +58,7 @@ export class Application {
 	async start() {
 		log(`Ambiente: ${` ${this.enhancer.env.NAME} `.bgMagenta}`)
 
+		this.server.use(cors())
 		this.server.use(
 			rateLimiter({
 				windowMs: 15 * 60 * 1000,
